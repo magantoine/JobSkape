@@ -1,0 +1,1 @@
+## SkillSkape: A Framework for Generating Synthetic Job Postings to Enhance Skill Matching
