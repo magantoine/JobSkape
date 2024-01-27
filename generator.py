@@ -1,31 +1,36 @@
-from typing import Dict, List, Any
-import pandas as pd
-from pandas import DataFrame
-import numpy as np
-import numpy.typing as npt
-from sklearn.metrics.pairwise import cosine_similarity
-import torch
-from gen_prompt_template import PROMPT_TEMPLATE
-from api_key import API_KEY
-import openai
-from openai.error import (
-    RateLimitError,
-    ServiceUnavailableError,
-    APIError,
-    APIConnectionError,
-    Timeout,
-    InvalidRequestError,
-)
-from tqdm.notebook import tqdm
+## native imports
 import time
 import re
 from collections import defaultdict
 import json
 from math import ceil
 
+## typing
+from typing import Dict, List, Any
+import numpy.typing as npt
+from pandas import DataFrame
+
+
+import numpy as np
+import torch
+from sklearn.metrics.pairwise import cosine_similarity
+import openai
+from openai.error import (
+    RateLimitError,
+    ServiceUnavailableError,
+    APIError,
+    Timeout,
+)
+
+from tqdm.notebook import tqdm
+
+## local imports
+from gen_prompt_template import PROMPT_TEMPLATE
+from skillExtract.api_key import API_KEY
+
+
 
 class SkillsGenerator():
-
     def __init__(self, 
                  taxonomy: DataFrame, 
                  taxonomy_is_embedded: bool,
@@ -145,29 +150,33 @@ class SkillsGenerator():
 
     @staticmethod
     def softmax(X, T=1):
+        """
+            Transform any sequence of value to distribution with
+            softmax function
+        """
         return np.exp(X / T) / np.sum(np.exp(X / T))
 
     def stochastic_inf_iter(self, 
-                            total_generations=1e7, 
-                            threshold=0.0,
-                            beam_size=20,
-                            temperature_skill=1,
-                            temperature_pairing=1,
-                            temperature_sample_size=1,
-                            frequency_select=True, 
-                            upper_bound_skill_matching=None):
+                            total_generations: int=1e7, 
+                            threshold: float=0.0,
+                            beam_size: int=20,
+                            temperature_skill: float=1,
+                            temperature_pairing: float=1,
+                            temperature_sample_size: int=1,
+                            frequency_select: bool=True, 
+                            upper_bound_skill_matching: int=None):
         """
             Creates a lazy iterator of combinations of entities in the taxonomy
 
             parameters:
-                - total_generations          : 
-                - threshold                  : 
-                - beam_size                  : 
-                - temperature_skill          :   
-                - temperature pairing        : 
-                - temperature_sample_size    : 
-                - frequency_select           : 
-                - upper_bound_skill_matching : 
+                - total_generations          :  Number of samples to generate
+                - threshold                  :  Threshold of similarity for skill kNN
+                - beam_size                  :  k for kNN
+                - temperature_skill          :  softens of skews the skill distribution
+                - temperature_pairing        :  softens of skews the pairing distribution
+                - temperature_sample_size    :  softens of skews the sample size distribution
+                - frequency_select           :  Do we select the skills to generate according to the popularity distribution ?
+                - upper_bound_skill_matching :  Upper bound on the number of skills to generate
         """
         all_skills = list(self.label_to_idx.keys())
         F = np.array([self.popularity[sk] for sk in self.label_to_idx.keys()])
@@ -196,13 +205,13 @@ class SkillsGenerator():
             Creates a list of combinations of entities in the taxonomy
 
             parameters:
-                - total_generations          : 
-                - threshold                  : 
-                - beam_size                  :   
-                - temperature pairing        : 
-                - temperature_sample_size    : 
-                - frequency_select           : 
-                - upper_bound_skill_matching : 
+                - total_generations          :  Number of samples to generate
+                - threshold                  :  Threshold of similarity for skill kNN
+                - beam_size                  :  k for kNN
+                - temperature_pairing        :  softens of skews the pairing distribution
+                - temperature_sample_size    :  softens of skews the sample size distribution
+                - frequency_select           :  Do we select the skills to generate according to the popularity distribution ?
+                - upper_bound_skill_matching :  Upper bound on the number of skills to generate
         """
         ## check of skills_to_use
         if((type(skills_to_use) != "int" and skills_to_use != "all")
@@ -240,13 +249,13 @@ class SkillsGenerator():
             Creates a lazy iterator of combinations of entities in the taxonomy
 
             parameters:
-                - total_generations          : 
-                - threshold                  : 
-                - beam_size                  : 
-                - temperature pairing        : 
-                - temperature_sample_size    : 
-                - frequency_select           : 
-                - upper_bound_skill_matching : 
+                - total_generations          :  Number of samples to generate
+                - threshold                  :  Threshold of similarity for skill kNN
+                - beam_size                  :  k for kNN
+                - temperature_pairing        :  softens of skews the pairing distribution
+                - temperature_sample_size    :  softens of skews the sample size distribution
+                - frequency_select           :  Do we select the skills to generate according to the popularity distribution ?
+                - upper_bound_skill_matching :  Upper bound on the number of skills to generate            
             """
             
             all_skills = list(self.emb_tax.name.unique())
@@ -398,13 +407,13 @@ class AdvancedSkillsGenerator(SkillsGenerator):
             Creates a lazy iterator of combinations of entities in the taxonomy
 
             parameters:
-                - total_generations          : 
-                - threshold                  : 
-                - beam_size                  : 
-                - temperature pairing        : 
-                - temperature_sample_size    : 
-                - frequency_select           : 
-                - upper_bound_skill_matching : 
+                - total_generations          :  Number of samples to generate
+                - threshold                  :  Threshold of similarity for skill kNN
+                - beam_size                  :  k for kNN
+                - temperature_pairing        :  softens of skews the pairing distribution
+                - temperature_sample_size    :  softens of skews the sample size distribution
+                - frequency_select           :  Do we select the skills to generate according to the popularity distribution ?
+                - upper_bound_skill_matching :  Upper bound on the number of skills to generate            
             """
             
             all_skills = list(self.emb_tax.name.unique())
@@ -433,8 +442,8 @@ MODELS = {
     'gpt-4'   : "gpt-4"
 }
 
-UPB_DENSE_GEN = 4
-LB_SPARSE_GEN = 6 ## normally 3 but set to 6 to avoid them in skillspan
+UPB_DENSE_GEN = 4 ## upper bound on the number of skills for dense distribution
+LB_SPARSE_GEN = 3 ## lower bound in the number of skills for sparse distribution
 
 class DatasetGenerator():
 
@@ -568,13 +577,6 @@ class DatasetGenerator():
     def query(self, 
               messages:List[Dict[str, str]],
               model: str="gpt-4"):
-        
-        #######
-        # print("-"*100)
-        # for message in messages:
-        #     print(message["content"])
-        #######
-
         try:
             response = openai.ChatCompletion.create(
                 model=model, messages=messages, request_timeout=20
