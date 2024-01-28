@@ -24,9 +24,14 @@ from openai.error import (
 
 from tqdm.notebook import tqdm
 
-## local imports
+## basic prompt
 from gen_prompt_template import PROMPT_TEMPLATE
-from skillExtract.api_key import API_KEY
+
+import os
+API_KEY = os.environ["API_KEY"]
+
+if(API_KEY == ""):
+    raise NotImplementedError("You need to enter your OPENAI API key in .env")
 
 
 

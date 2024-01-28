@@ -45,7 +45,11 @@ nlp_model.add_pipe("language_detector", last=True)
 
 
 from prompt_template import PROMPT_TEMPLATES
-from api_key import API_KEY
+import os
+API_KEY = os.environ["API_KEY"]
+
+if(API_KEY == ""):
+    raise NotImplementedError("You need to enter your OPENAI API key in .env")
 
 CHAT_COMPLETION_MODELS = ["gpt-3.5-turbo", "gpt-4"]
 TEXT_COMPLETION_MODELS = ["text-davinci-003"]
