@@ -1,28 +1,20 @@
 import pandas as pd
-import argparse
 import openai
 import time
 from openai.error import (
     RateLimitError,
     ServiceUnavailableError,
     APIError,
-    APIConnectionError,
     Timeout,
-    InvalidRequestError,
 )
 import os
-from tqdm import tqdm
+
 import json
 import numpy as np
-import ipdb
-import pathlib
 import re
-import tiktoken
-import asyncio
-import difflib
-from split_words import Splitter
-from sentence_splitter import SentenceSplitter, split_text_into_sentences
-from spacy_langdetect import LanguageDetector
+
+
+from sentence_splitter import SentenceSplitter
 import spacy
 from spacy.language import Language
 from spacy_language_detection import LanguageDetector
@@ -44,12 +36,14 @@ Language.factory("language_detector", func=get_lang_detector)
 nlp_model.add_pipe("language_detector", last=True)
 
 
-from prompt_template import PROMPT_TEMPLATES
+from .prompt_template import PROMPT_TEMPLATES
 import os
-API_KEY = os.environ["API_KEY"]
-
+from dotenv import load_dotenv
+load_dotenv(".env")
+API_KEY = os.getenv("API_KEY")
 if(API_KEY == ""):
     raise NotImplementedError("You need to enter your OPENAI API key in .env")
+
 
 CHAT_COMPLETION_MODELS = ["gpt-3.5-turbo", "gpt-4"]
 TEXT_COMPLETION_MODELS = ["text-davinci-003"]
@@ -501,7 +495,7 @@ def concatenate_cols_skillname(row):
     return output
 
 
-# def filter_subwords(extracted_skill, skill_names, splitter):
+
 def filter_subwords(extracted_skill, splitter):
     subwords = []
     for word in extracted_skill.split():
@@ -630,93 +624,6 @@ def get_top_vec_similarity(
     )
     return emb_tax
 
-## BASE VERSION
-# def select_candidates_from_taxonomy(
-#     sample,
-#     taxonomy,
-#     splitter,
-#     model,
-#     tokenizer,
-#     max_candidates=10,
-#     method="rules",
-#     emb_tax=None,
-# ):
-#     assert method in ["rules", "embeddings", "mixed"]
-#     sample["skill_candidates"] = {}
-#     if len(sample["extracted_skills"]) > 0:
-#         for extracted_skill in sample["extracted_skills"]:
-#             #print("extracted skill:", extracted_skill)
-
-#             if method == "rules" or method == "mixed":
-#                 # print("checking for matches in name+definition")
-#                 taxonomy["results"] = taxonomy["name+definition"].str.contains(
-#                     extracted_skill, case=False, regex=False
-#                 )
-
-#                 if not taxonomy["results"].any():
-#                     # print("checking for matches in example")
-#                     taxonomy["results"] = taxonomy["Example"].str.contains(
-#                         extracted_skill, case=False, regex=False
-#                     )
-
-#                 if not taxonomy["results"].any():
-#                     # print("checking for matches in subwords")
-#                     taxonomy["results"] = False
-#                     for subword in filter_subwords(extracted_skill, splitter):
-#                         taxonomy["results"] = taxonomy["results"] + taxonomy[
-#                             "name+definition"
-#                         ].str.contains(subword, case=False, regex=False)
-
-#                 # if not taxonomy["results"].any():
-#                 #     if method == "rules":
-#                 #         # print("checking for matches in difflib")
-#                 #         matching_elements = difflib.get_close_matches(
-#                 #             extracted_skill,
-#                 #             taxonomy["name+definition"],
-#                 #             cutoff=0.4,
-#                 #             n=max_candidates,
-#                 #         )
-#                 #         taxonomy["results"] = taxonomy["name+definition"].isin(
-#                 #             matching_elements
-#                 #         )
-
-#                 if not taxonomy["results"].any():
-#                     print("No candidates found for: ", extracted_skill)
-
-#                 if taxonomy["results"].sum() > 10:
-#                     true_indices = taxonomy.index[taxonomy["results"]].tolist()
-#                     selected_indices = np.random.choice(true_indices, 10, replace=False)
-#                     taxonomy["results"] = False
-#                     taxonomy.loc[selected_indices, "results"] = True
-
-#             if method == "embeddings" or method == "mixed":
-#                 # print("checking for highest embedding similarity")
-#                 emb_tax = get_top_vec_similarity(
-#                     extracted_skill,
-#                     sample["sentence"],
-#                     emb_tax,
-#                     model,
-#                     tokenizer,
-#                     max_candidates,
-#                 )
-#                 if method == "embeddings":
-#                     taxonomy["results"] = emb_tax["results"]
-#                 else:
-#                     taxonomy["results"] = taxonomy["results"] | emb_tax["results"]
-#             # if taxonomy["results"].sum() > 0:
-#             #     breakpoint()
-
-#             keep_cols = [
-#                 "unique_id",
-#                 "Type Level 2",
-#                 "name+definition",
-#             ]
-
-#             matching_df = taxonomy[taxonomy["results"] == True][keep_cols]
-
-#             sample["skill_candidates"][extracted_skill] = matching_df.to_dict("records")
-
-#     return sample
 
 def select_candidates_from_taxonomy(
     sample,
