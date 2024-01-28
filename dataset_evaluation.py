@@ -1,14 +1,19 @@
-import sys
-sys.path.append("../skillExtract/")
 import pandas as pd
 from transformers import (AutoModel, AutoTokenizer)
-from utils import select_candidates_from_taxonomy
+from models.skillExtract.utils import select_candidates_from_taxonomy
 import pickle
 from tqdm import tqdm
-from utils import (OPENAI,
-                   Splitter,
-                   select_candidates_from_taxonomy)
-from api_key import API_KEY
+from models.skillExtract.utils import (
+    OPENAI,
+    select_candidates_from_taxonomy
+)
+import os
+from dotenv import load_dotenv
+load_dotenv(".env")
+API_KEY = os.getenv("API_KEY")
+if(API_KEY == ""):
+    raise NotImplementedError("You need to enter your OPENAI API key in .env")
+
 import evaluate
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.metrics import (precision_score, 
@@ -16,12 +21,13 @@ from sklearn.metrics import (precision_score,
 import numpy as np
 import torch
 import random
-from split_words import Splitter
-from gen_utils import embedd_tax
+from sentence_splitter import SentenceSplitter as Splitter
 
-# ESCO_DIR = "../../../esco/"
-ESCO_DIR = "/mnt/u14157_ic_nlp_001_files_nfs/nlpdata1/home/magron/esco/"
-GENERATED_DIR = "/mnt/u14157_ic_nlp_001_files_nfs/nlpdata1/home/magron/SkillThrills/protosp01/dataset_generation/generation/generated/"
+
+
+
+ESCO_DIR = "./taxonomy/"
+GENERATED_DIR = "./SkillSkape/"
 
 
 
@@ -132,9 +138,6 @@ def entity_level_quality_1_to_1(predictions, label_key):
                     x["name+definition"].split(" : ")[0] for x in pred_item["matched_skills"].values()
                 ]
                 if(label in predicted_labels):
-                    # print("-"*45)
-                    # print("we have a match for :", label)
-                    # print("in : ", predicted_labels)
 
                     preds_gt.append([label, label])
                 else :
@@ -143,11 +146,7 @@ def entity_level_quality_1_to_1(predictions, label_key):
                     else :
                         preds_gt.append([label, "LABEL NOT PRESENT"])
                 
-                # THIS VERSION HAS ONE PREDICTION ENTRY PER 
-                # (LABEL, PREDICTION) AND THUS HAS WAY TOO 
-                # MUCH ENTRY TO PREVIDE MEANINGFUL RESULTS
-                # for matched_pred in predicted_labels:
-                #     preds_gt.append([label, matched_pred])
+                
     gts, preds = zip(*preds_gt)
     gts = np.array(gts)
     preds = np.array(preds)
@@ -228,14 +227,6 @@ class Args():
         self.presence_penalty = presence_penalty## default val
 
 
-def get_proto_emb_tax():
-    with open(ESCO_DIR + "embedded_tech_management_tax.pkl", "rb") as emb:
-        tech_emb_tax = pickle.load(emb)
-
-    taxonomy = pd.read_csv(ESCO_DIR + "tech_managment_taxonomy_narrow.csv")
-    taxonomy["name+definition"] = taxonomy["name+defintion"]
-    taxonomy["Example"] = taxonomy["altLabels"]
-    return tech_emb_tax, taxonomy
 
 
 def get_sp_emb_tax(split):
@@ -292,21 +283,14 @@ class Predictor():
             emb_tax2, taxonomy2 = get_sp_emb_tax("dev")
             self.emb_tax = pd.concat([emb_tax1, emb_tax2]).drop_duplicates("name")
             self.taxonomy = pd.concat([taxonomy1, taxonomy2]).drop_duplicates("name")
-        elif(test_domain == "Proto"):
-            self.emb_tax, self.taxonomy = get_proto_emb_tax()
         else:
             raise ValueError("Unknown or unsupported test domain.")
 
         ## ADD TRAIN DOMAIN TO DECIDE WHERE THE SUPPORT COME FROM
         support_set_fname_base = GENERATED_DIR + "{DOMAIN}/ANNOTATED_SUPPORT_SET.pkl"
-        target = {
-            "Proto": "PROTOTYPE",
-            "SkillSpan": "SKILLSPAN",
-            "R-SkillSpan": "R-SKILLSPAN",
-            "Decorte": "DECORTE"
-        }
-        if(train_domain in target):
-            support_set_fname = support_set_fname_base.format(DOMAIN=target[train_domain])
+        train_domain = train_domain.upper()
+        if(train_domain in ["COMPLETE", "DECORTE", "SKILLSKAPE"]):
+            support_set_fname = support_set_fname_base.format(DOMAIN=train_domain.upper())
         else:
             raise ValueError("Unknown or unsupported train domain")
         
@@ -314,15 +298,15 @@ class Predictor():
         with open(support_set_fname, "rb") as f:
             self.support_set = pickle.load(f).dropna()
             
-            if(train_domain not in ["Decorte", "R-SkillSpan"]): ## 1st gen
+            if(train_domain not in ["DECORTE", "SKILLSKAPE"]): ## 1st gen
                 self.support_set["skill"] = self.support_set["skill"].apply(eval) ## into list
             else: ## last generation
                 self.support_set = self.support_set.rename({'annot_spans': 'spans'}, axis=1)
 
-            if(train_domain not in ["Decorte"]):
+            if(train_domain not in ["DECORTE"]):
                 self.support_set = self.support_set.explode("skill")
             
-            if(train_domain in ["Decorte"]):
+            if(train_domain in ["DECORTE"]):
                 self.support_set["spans"] = self.support_set["spans"].apply(eval) ## into list
                 
 
@@ -357,7 +341,7 @@ class Predictor():
                 nb_candidates = 5
             ## CANDIDATE SELECTION
             if "extracted_skills" in sentences_res_list[0]:
-                splitter = Splitter()
+                splitter = Splitter("en")
                 for idxx, sample in enumerate(sentences_res_list):
                     sample = select_candidates_from_taxonomy(
                         sample,
@@ -420,9 +404,9 @@ class Predictor():
     
     def prepare_support(self, support, nb_candidates):
 
-        splitter = Splitter()
+        splitter = Splitter("en")
         span = random.choice(support["spans"])
-        candidates = select_candidates_from_taxonomy( ## BOTTLENECK 2
+        candidates = select_candidates_from_taxonomy(
             {
                 "extracted_skills":[span],
                 "sentence": support["sentence"]
@@ -432,7 +416,7 @@ class Predictor():
             tokenizer=word_emb_tokenizer,
             model=word_emb_model,
             max_candidates=nb_candidates,
-            method="embeddings", ### COMPARE WITH MIXED AND CANDIDATEDS WILL THEN BE 20 AS FOR THE RUN 
+            method="embeddings",
             emb_tax = self.emb_tax
         )
         if(support["skill"] in self.taxonomy.name):
