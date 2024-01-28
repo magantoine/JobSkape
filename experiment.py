@@ -2,46 +2,52 @@ from dataset_evaluation import Predictor
 import pandas as pd
 import pickle
 import sys
+import argparse
+
+from dotenv import load_dotenv
+load_dotenv(".env")
 
 
-AD = False
 
 def main():
+    parser = argparse.ArgumentParser(description='Process arguments for the script.')
 
-    ## MESSY ARGUMENTS HANDLING
-    NB_ARGUMENTS = 3
-    if(len(sys.argv) < NB_ARGUMENTS + 1):
-        raise ValueError("Wrong set of arguments")
-    target_metric_filename = sys.argv[1]
-    SUPPORT = sys.argv[2]
-    BOOTSTRAP = int(sys.argv[3])
+    parser.add_argument('-m', '--metric_fname', type=str, help='Name of the target metric file', required=True)
+    parser.add_argument('-s', '--support', type=str, choices=['DECORTE', 'SKILLSKAPE', 'COMPLETE'],
+                        required=True, help='Type of support (DECORTE, SKILLSKAPE, COMPLETE)')
+    parser.add_argument('-b', '--bootstrap', type=int, required=True,
+                        help='Number of bootstrap iterations for the experiment')
+    parser.add_argument('-p', '--pred_file', type=str, help='Optional: Load result file if it already exists')
+
+    args = parser.parse_args()
+
+    # Access the arguments using args
+    target_metric_file_name = args.metric_fname
+    support_type = args.support
+    bootstrap_iterations = args.bootstrap
+    pred_file = args.pred_file
+
+    # Now you can use these variables in your script as needed
+    print(f'Target Metric File Name: {target_metric_file_name}')
+    print(f'Support Type: {support_type}')
+    print(f'Bootstrap Iterations: {bootstrap_iterations}')
     
-    OUTSET = sys.argv[4] if len(sys.argv) > 4 else None 
-    fname_preds = sys.argv[5] if len(sys.argv) > 5 else None 
-    ##########################
-
-    print(f"METRIC FILE NAME : {target_metric_filename}.pkl")
-    print(f"BOOTSTRAPING REPETITIONS : {BOOTSTRAP}")
-    if(fname_preds is not None):
-        print(f"SAVE PRED FILE IN : {fname_preds}")
-    ## we test with SkillSpan dataset
-    if AD:
-        ESCO_DIR = "../../data/taxonomy/esco/"
-        with open(ESCO_DIR + "dev.json") as f:
-            testsp = eval(",".join(f.read().split("\n")))
+    if pred_file:
+        print(f'Optional Pred File: {pred_file}')
     else:
-        ESCO_DIR = "../../../esco/"
-        testsp = pd.read_csv("./generation/generated/SKILLSPAN/test_refined.csv", names=["idx", "sentence", "skills"], header=1)
+        print('No optional Pred File provided.')
+
+    testsp = pd.read_csv("./SkillSkape/test.csv", names=["idx", "sentence", "skills"])
     testsp = pd.DataFrame(testsp).drop("idx", axis=1).dropna()
     testsp.columns = ["sentence", "skills"]
     testsp = testsp[["skills", "sentence"]]
 
     testsp = testsp.to_dict(orient='records') ## input to predictor are as records
 
-    print("Number of dev sp samples : ", len(testsp))
+    
     predictor = Predictor(
             test_domain="SkillSpan-test+dev", ## goal is to use the subset of train samples 
-            train_domain=SUPPORT, ## SkillSpan means SkillSpans SP 
+            train_domain=support_type, ## SkillSpan means SkillSpans SP 
             candidates_method="mixed"
         )
     
@@ -59,10 +65,10 @@ def main():
     ]
 
     for kwargs in all_kwargs:
-        all_res.append(bootstrap(predictor, kwargs, BOOTSTRAP, fname_preds))
+        all_res.append(bootstrap(predictor, kwargs, bootstrap_iterations, pred_file))
 
     
-    with open(f"{target_metric_filename}.pkl", "wb") as f:
+    with open(f"{target_metric_file_name}.pkl", "wb") as f:
         pickle.dump(all_res, f)
 
 
