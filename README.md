@@ -1,7 +1,7 @@
 # SkillSkape
 
 This is the source code for paper  [JOBSKAPE: A Framework for Generating Synthetic Job Postings to
-Enhance Skill Matching](./_NLP4HR___Synthetic_job_posting_generation_for_skill_matching.pdf)
+Enhance Skill Matching](FUTURE-REF-TO-PAPER).
 
 
 ## Getting Started
