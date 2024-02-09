@@ -1,7 +1,7 @@
 # SkillSkape
 
 This is the source code for paper  [JOBSKAPE: A Framework for Generating Synthetic Job Postings to
-Enhance Skill Matching](FUTURE-REF-TO-PAPER).
+Enhance Skill Matching](https://arxiv.org/abs/2402.03242) (published at NLP4HR Workshop EACL 2024 and now available on ArXiv).
 
 
 ## Getting Started
@@ -10,7 +10,7 @@ Start with creating a **python 3.7** venv and installing **requirements.txt**.
 ## Directory
 
 
-The directory is composed of multiple componenets :
+The directory is composed of multiple components :
 - [JobSkape generator implementation](./generator.py)
 - [Examples notebook for usage](./data_generation.ipynb)
 - [SkillSkape dataset](./SkillSkape/)
@@ -199,7 +199,7 @@ supervised
 - `run_inference.sh` : inference script
 
 
-### Unspervised - In Context Learning
+### Unsupervised - In Context Learning :
 
 ![Alt text](static/icl_pipeline.png)
 
