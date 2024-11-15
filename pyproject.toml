@@ -1,0 +1,17 @@
+[project]
+name = "jobskape"
+version = "0.0.5"
+authors = [
+  { name="Antoine Magron", email="antoine.ja.magron@gmail.com" }
+]
+description = "This is the source code for paper JOBSKAPE: A Framework for Generating Synthetic Job Postings to Enhance Skill Matching (published at NLP4HR Workshop EACL 2024 and now available on ArXiv)."
+readme = "README.md"
+requires-python = ">=3.8"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+
+[project.urls]
+Homepage = "https://github.com/magantoine/JobSkape/"
